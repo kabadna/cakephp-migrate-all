@@ -1,5 +1,5 @@
 {
-    "name": "kabadna/migrate-all",
+    "name": "kabadna/cakephp-migrate-all",
     "description": "MigrateAll plugin for CakePHP",
     "type": "cakephp-plugin",
     "license": "MIT",
