@@ -23,11 +23,6 @@ class MigrateAllCommand extends Command
     protected array $argsForMigrate = [];
 
     /**
-     * @var string Name of plugin that is not processed. (comma separated string)
-     */
-    protected string $excludePluginName = '';
-
-    /**
      * path to Migration directory
      *
      * @var string
@@ -88,7 +83,7 @@ class MigrateAllCommand extends Command
     public function run(array $argv, ConsoleIo $io): ?int
     {
         // backup argv
-        $this->argsForMigrate = $this->_extractMigrateArgs($argv);
+        $this->argsForMigrate = $this->_extractArgsForMigrate($argv);
 
         return parent::run($argv, $io);
     }
@@ -99,19 +94,27 @@ class MigrateAllCommand extends Command
      * @param array $argv Arguments for this batch.
      * @return array Argument for migrate batch.
      */
-    protected function _extractMigrateArgs(array $argv): array
+    protected function _extractArgsForMigrate(array $argv): array
     {
-        // unset `exclude` option
-        $pos = array_search('--exclude', $argv, true);
-        if ($pos !== false) {
-            unset($argv[$pos]);
-
-            if (isset($argv[$pos + 1])) {
-                if (strpos($argv[$pos + 1], '-') !== 0) {
-                    unset($argv[$pos + 1]);
-                }
+        do {
+            $value = current($argv);
+            if ($value === false) {
+                break;
             }
-        }
+            // unset `exclude` option & value
+            if ($value === '--exclude') {
+                $arrayKeyOfKey = key($argv);
+                next($argv);
+                if (strpos(current($argv), '-') !== 0) {
+                    $arrayKeyOfValue = key($argv);
+                    next($argv);
+                    unset($argv[$arrayKeyOfValue]);
+                }
+                unset($argv[$arrayKeyOfKey]);
+            } else {
+                next($argv);
+            }
+        } while (true);
 
         return $argv;
     }
@@ -121,15 +124,22 @@ class MigrateAllCommand extends Command
      *
      * @param \Cake\Console\Arguments $args The command arguments.
      * @param \Cake\Console\ConsoleIo $io The console io
-     * @return null|void|int The exit code or null for success
+     * @return null|int The exit code or null for success
      */
     public function execute(Arguments $args, ConsoleIo $io): ?int
     {
         $loadedPlugins = Plugin::getCollection();
 
+        $excludePluginNames = explode(',', $args->getOption('exclude'));
+        $io->verbose('Exclude plugin is [' . implode('|', $excludePluginNames)) . ']';
+
         // create target plugin name list.
         $pluginNames = [];
         foreach ($loadedPlugins as $pluginName => $loadedPlugin) {
+            if (in_array($pluginName, $excludePluginNames)) {
+                continue;
+            }
+
             $path = $loadedPlugin->getPath() . $this->pathFragment;
             if (!empty(glob($path . '*.php'))) {
                 $pluginNames[] = $pluginName;
@@ -168,7 +178,7 @@ class MigrateAllCommand extends Command
      * @param \Cake\Console\Arguments $args The command arguments.
      * @param \Cake\Console\ConsoleIo $io The console io
      * @param string $pluginName plugin name (If App, set '')
-     * @return null|void|int The exit code or null for success
+     * @return null|int The exit code or null for success
      */
     protected function _execMigrate(Arguments $args, ConsoleIo $io, ?string $pluginName = null): ?int
     {
